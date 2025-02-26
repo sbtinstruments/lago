@@ -11,7 +11,6 @@ from baxter.high_level import Miscellaneous
 from cyto.model import FrozenModel
 from pydantic import FilePath
 from rich.prompt import Confirm
-from typer import Typer
 
 from ...low_level import setup_and_get_private_assets_dir
 from ._component_qc_template import RAW_DATA_FILE_NAME, ComponentQcTemplate
