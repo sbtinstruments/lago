@@ -8,10 +8,7 @@ requires-python = "<4,>=3.12"
 name = "lago"
 version = "0.1.0"
 description = "Brings structure to our data lake"
-dependencies = [
-    "filelock<4.0.0,>=3.15.4",
-    "cyto[model] @ git+https://github.com/sbtinstruments/cyto.git@master",
-]
+dependencies = ["filelock<4.0.0,>=3.15.4", "cyto[model]"]
 
 [project.scripts]
 lago = "lago.cli:__main__"
