@@ -25,5 +25,5 @@ def summary() -> None:
 
 
 def _print_summary(session: Session) -> None:
-    query = "SELECT * FROM execution"
+    query = "SELECT * FROM measurement_record"
     print(pl.read_database(query=query, connection=session))
