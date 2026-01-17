@@ -2,23 +2,21 @@ import logging
 from collections.abc import Sequence
 from functools import cache
 from pathlib import Path
+from urllib.parse import urlparse
 
 from filelock import FileLock
 
 from ._git import Git
 from ._lago_cache import setup_and_get_lago_cache_dir
-from ._lago_constants import (
-    PRIVATE_ASSETS_DIR_NAME,
-    PRIVATE_ASSETS_GIT_URL,
-    PRIVATE_ASSETS_LOCK_FILE_NAME,
-)
+from ._lago_constants import PRIVATE_ASSETS_GIT_URL
 
 _LOGGER = logging.getLogger(__name__)
 
 
 @cache
-def setup_and_get_private_assets_dir(
+def setup_and_get_assets_dir(
     *,
+    git_url: str | None = None,
     include_paths: Sequence[Path] | None = None,
     stop_if_not_empty: bool | None = None,
 ) -> Path:
@@ -52,22 +50,25 @@ def setup_and_get_private_assets_dir(
     Note that this undoes *all* changes in the current repository. Not just the
     pointer-to-content changes.
     """
+    if git_url is None:
+        git_url = PRIVATE_ASSETS_GIT_URL
     if stop_if_not_empty is None:
         stop_if_not_empty = True
 
     cache_dir = setup_and_get_lago_cache_dir()
+    private_assets_dir_name = Path(urlparse(git_url).path).stem
+    private_assets_lock_file_name = f"{private_assets_dir_name}.lock"
 
     # This lock ensures that only a single process modifies the `private-assets`
     # at a time. This is especially relevant for test suites that use `pytest-xdist`.
-    lock_file = cache_dir / PRIVATE_ASSETS_LOCK_FILE_NAME
+    lock_file = cache_dir / private_assets_lock_file_name
     with FileLock(lock_file):
         # This is the usual path. Examples:
         #
         #     "~/projects/baxter/.lago_cache/private-assets"
         #     "[...] workspace/sources/python3-lago/.lago_cache/private-assets"
         #
-        # ruff: noqa: ERA001
-        private_assets_dir = cache_dir / PRIVATE_ASSETS_DIR_NAME
+        private_assets_dir = cache_dir / private_assets_dir_name
 
         # Early out if the `private-assets` directory is not empty.
         # Use this to, e.g., speed up this function call on subsequent invocations.
@@ -82,7 +83,7 @@ def setup_and_get_private_assets_dir(
             return private_assets_dir
 
         assets_git = Git(directory=private_assets_dir)
-        assets_git.clone(PRIVATE_ASSETS_GIT_URL)
+        assets_git.clone(git_url)
 
         assets_git.raise_if_git_lfs_is_missing()
         assets_git.install_lfs()

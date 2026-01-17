@@ -12,7 +12,7 @@ from cyto.model import FrozenModel
 from pydantic import FilePath
 from rich.prompt import Confirm
 
-from ...low_level import setup_and_get_private_assets_dir
+from ...low_level import setup_and_get_assets_dir
 from ._component_qc_template import RAW_DATA_FILE_NAME, ComponentQcTemplate
 
 # SNIPIFY_CMD = Typer(
@@ -99,7 +99,7 @@ def snipify(
     if not yes_to_all and not Confirm.ask("Continue?"):
         sys.exit()
 
-    private_assets = setup_and_get_private_assets_dir()
+    private_assets = setup_and_get_assets_dir()
     executions_dir = private_assets / "executions"
 
     rich.print(f"We put the results in: {executions_dir}")
