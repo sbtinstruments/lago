@@ -19,9 +19,6 @@ dependencies = [
 [project.scripts]
 lago = "lago.cli:__main__"
 
-[project.optional-dependencies]
-cli = ["typer<1.0.0,>=0.12.3", "rich<14.0.0,>=13.7.1", "polars<2.0.0,>=1.5.0"]
-
 [dependency-groups]
 dev = ["mypy>=1.10.1,<2", "ruff>=0.14.13"]
 
