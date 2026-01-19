@@ -24,3 +24,101 @@ cli = ["typer<1.0.0,>=0.12.3", "rich<14.0.0,>=13.7.1", "polars<2.0.0,>=1.5.0"]
 
 [dependency-groups]
 dev = ["mypy>=1.10.1,<2", "ruff>=0.14.13"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+lint.select = ["ALL"]
+lint.ignore = [
+    # "flake8-annotations". mypy does our type checking.
+    "ANN",
+    # "flake8-commas (COM)". We use black instead.
+    "COM",
+    # "flake8-errmsg (EM)". Three rules that are all about "Exception must not use
+    # a string literal, assign to variable first". Too little gained for the effort.
+    # Maybe later.
+    "EM",
+    # "Boolean default value in function definition". We think it's perfectly okay to
+    # provide a default value for a boolean flag.
+    "FBT002",
+    # We have TODO's and HACK's throughout as reminders for later. That is okay.
+    "FIX002",
+    "FIX004",
+    # "pydocstyle (D)". We *should* do this. It's just a large effort. Maybe later.
+    "D",
+    # commented-out-code (ERA001)
+    # Too many false-positives.
+    # See: https://github.com/astral-sh/ruff/issues/4845
+    "ERA001",
+    # ISC001 conflicts with ruff's own, built-in formatter.
+    "ISC001",
+    # useless-import-alias (PLC0414)
+    # The idiomatic way to export things from `__init__` files is:
+    #
+    #     from ._pedb_row import PedbRow as PedbRow
+    #
+    # This, however, does not place nicely together with PLC0414.
+    # See: https://github.com/astral-sh/ruff/issues/6294
+    "PLC0414",
+    # magic-value-comparison (PLR2004)
+    # We would like to get rid of magic values but there are simply too many
+    # to tackle right now,
+    "PLR2004",
+    # "Use of assert detected". We like `assert`.
+    "S101",
+    # "flake8-type-checking". Too little gained for the effort. Maybe later.
+    "TCH",
+    # "TD002 Missing author in TODO".
+    # "TD003 Missing issue link on the line following this TODO".
+    # That's not how we use TODO.
+    "TD002",
+    "TD003",
+    # "Relative imports from parent modules are banned". We like relative imports.
+    "TID252",
+    # "Avoid specifying long messages outside the exception class".
+    # Apparently, any string that contains a space is "too long". That's a bit too
+    # strict for us.
+    "TRY003",
+    # We prefer a combination of `error` and debug` to log the error message and
+    # exception (including stack trace), respectively. We do *not* want to use
+    # `exception` since it outputs both at the ERROR log level.
+    "TRY400",
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+implicit_reexport = true
+pretty = true
+show_error_codes = true
+plugins = ["pydantic.mypy"]
+warn_unused_ignores = false
+mypy_path = "$MYPY_CONFIG_FILE_DIR/stubs"
+
+[[tool.mypy.overrides]]
+module = ["portion"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["asyncpg.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["daemon.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["portion.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["syslog_rfc5424_formatter.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+log_cli = true
+log_cli_level = "DEBUG"
+log_cli_format = "%(asctime)s [%(levelname)8s] [%(name)40s] %(message)s (%(filename)s:%(lineno)s)"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"
+python_files = "test_*.py"
+addopts = "--ignore oe-workdir"
