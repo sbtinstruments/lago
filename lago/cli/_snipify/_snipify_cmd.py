@@ -2,15 +2,17 @@ from __future__ import annotations
 
 import shutil
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Annotated
 
 import rich
 import typer
-from baxter.high_level import Miscellaneous
-from cyto.model import FrozenModel
 from pydantic import FilePath
 from rich.prompt import Confirm
+
+from baxter.high_level import Miscellaneous
+from cyto.model import FrozenModel
 
 from ...low_level import setup_and_get_assets_dir
 from ._component_qc_template import RAW_DATA_FILE_NAME, ComponentQcTemplate
@@ -34,7 +36,7 @@ _MANIFEST = """
 """
 
 
-def snipify(
+def snipify(  # noqa: C901, PLR0913
     raw_data_dir: Annotated[
         Path, typer.Argument(dir_okay=True, file_okay=False, exists=True)
     ],
@@ -60,7 +62,7 @@ def snipify(
         )
 
     to_convert: list[RawDataFileSet] = []
-    all_iqs_files = (
+    all_iqs_files: Iterable[Path] = (
         entry
         for entry in raw_data_dir.glob("*.iqs")
         if entry.is_file() and entry.suffixes != [".fragments", ".iqs"]
@@ -107,7 +109,7 @@ def snipify(
     for file_set in to_convert:
         try:
             file_set.save_as_snip(executions_dir, replace_existing_dir=replace_existing)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             rich.print(f"Error for {file_set.iqs.stem} due to: {exc}")
 
 

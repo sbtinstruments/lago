@@ -2,12 +2,20 @@ import re
 from collections.abc import Iterator
 from pathlib import Path
 
-from baxter.high_level import ComponentQc, Miscellaneous, Pbs, SilicaBeadsInPbs
+from baxter.high_level import ComponentQc, Miscellaneous
 from cyto.model import FrozenModel
+from green_mango.outcome import Liquid, Pbs, SilicaBeadsInPbs
 
 RAW_DATA_FILE_NAME = re.compile(
     r"(?P<prefix>[\w\d]*)-(?P<hostname>[\w\d]{9})-(?P<date>[\d]{8})-(?P<time>[\d]{6})-(?P<mnemonic_id>[\w\d]+)"
 )
+
+
+def validate_file_name(file: Path) -> re.Match[str]:
+    matches = RAW_DATA_FILE_NAME.match(file.name)
+    if matches is None:
+        raise RuntimeError(f"File name '{file.name}' does not match expected pattern")
+    return matches
 
 
 class ComponentQcTemplate(FrozenModel):
@@ -30,12 +38,12 @@ class ComponentQcTemplate(FrozenModel):
 
     @staticmethod
     def _get_hostname_from_file(file: Path) -> str:
-        matches = RAW_DATA_FILE_NAME.match(file.name)
+        matches = validate_file_name(file)
         return matches.group("hostname")
 
     @staticmethod
     def _get_id_from_file(file: Path) -> str:
-        matches = RAW_DATA_FILE_NAME.match(file.name)
+        matches = validate_file_name(file)
         return matches.group("mnemonic_id")
 
     def validate_files(self, files: tuple[Path, ...]) -> None:
@@ -55,6 +63,7 @@ class ComponentQcTemplate(FrozenModel):
             raise ValueError(
                 f"The id {identifier} was not found in the component QC template."
             )
+        liquid: Liquid
         if identifier in self.reference_id_sequence:
             index = self.reference_id_sequence.index(identifier)
             liquid = SilicaBeadsInPbs(

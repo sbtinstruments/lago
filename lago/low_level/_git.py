@@ -67,7 +67,7 @@ class Git:
             run_cmd.extend(("-C", str(self.directory)))
         run_cmd.extend(cmd)
         self._debug("run: '%s'", run_cmd)
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             run_cmd,
             # Output directly so that we get live progress reports
             stdout=stdout,

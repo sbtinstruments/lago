@@ -1,7 +1,8 @@
 import polars as pl
-from baxter.high_level.db import Session, create_engine
 from rich import print  # noqa: A004
 from typer import Option, Typer
+
+from baxter.high_level.db import Session, create_engine
 
 DB_CMD = Typer(
     name="db",
@@ -11,7 +12,7 @@ DB_CMD = Typer(
 
 
 @DB_CMD.command()
-def recreate(print_summary: bool = Option(default=True, is_flag=True)) -> None:
+def recreate(print_summary: bool = Option(default=True, is_flag=True)) -> None:  # noqa: FBT001
     engine = create_engine(recreate_policy="always")
     with Session(bind=engine) as session, session.begin():
         if print_summary:
