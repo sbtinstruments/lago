@@ -1,7 +1,6 @@
 import logging
 import subprocess
 import sys
-from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -15,31 +14,39 @@ class Git:
 
     directory: Path
 
-    def clone(self, repo: str) -> None:
-        self._debug("Git clone")
-        self._run("clone", repo, str(self.directory), specify_dir=False)
+    def clone_bare(self, repo: str) -> None:
+        self._debug("Git clone --bare")
+        self._run("clone", "--bare", repo, str(self.directory), specify_dir=False)
+
+    def fetch_commit(self, commit_id: str) -> None:
+        self._debug("Fetch commit %s", commit_id)
+        self._run("fetch", "origin", commit_id)
 
     def install_lfs(self) -> None:
-        """Install git-lfs hooks in the repository."""
+        """Install git-lfs hooks/filters in the repository."""
         self._debug("Install LFS hooks")
-        self._run("lfs", "install")
+        self._run("lfs", "install", "--local")
 
-    def fetch_lfs(self, *, include_paths: Sequence[Path] | None = None) -> None:
-        self._debug("Fetch LFS objects (include_paths=%s)", include_paths)
-        cmd: list[str] = ["lfs", "fetch"]
-        if include_paths is not None:
-            cmd.append("--include")
-            cmd.extend(str(path) for path in include_paths)
-        self._run(*cmd)
+    def fetch_lfs_for_commit(self, commit_id: str) -> None:
+        self._debug("Fetch LFS objects for %s", commit_id)
+        self._run("lfs", "fetch", "origin", commit_id)
 
     def checkout_lfs(self) -> None:
         self._debug("Checkout LFS objects")
         self._run("lfs", "checkout")
 
+    def add_worktree(self, *, path: Path, commit_id: str) -> None:
+        self._debug("Add worktree %s @ %s", path, commit_id)
+        self._run("worktree", "add", "--detach", str(path), commit_id)
+
+    def prune_worktrees(self) -> None:
+        self._debug("Prune worktrees")
+        self._run("worktree", "prune")
+
     def raise_if_git_lfs_is_missing(self) -> None:
         self._debug("Check if `git-lfs` is installed")
         try:
-            self._run("lfs", stdout=subprocess.DEVNULL)
+            self._run("lfs", stdout=subprocess.DEVNULL, specify_dir=False)
         except subprocess.CalledProcessError as exc:
             raise RuntimeError(
                 "Install 'git-lfs' (Git Large File Storage) first. "

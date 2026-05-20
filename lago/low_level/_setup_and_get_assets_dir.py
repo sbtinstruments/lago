@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Sequence
+import shutil
 from functools import cache
 from pathlib import Path
 from urllib.parse import urlparse
@@ -16,83 +16,73 @@ _LOGGER = logging.getLogger(__name__)
 @cache
 def setup_and_get_assets_dir(
     *,
+    commit_id: str,
     git_url: str | None = None,
-    include_paths: Sequence[Path] | None = None,
-    stop_if_not_empty: bool | None = None,
 ) -> Path:
-    """Return the directory that contains SBT's private assets.
+    """Return a worktree of SBT's private assets pinned at ``commit_id``.
 
-    This is a one-stop function. It does everything to set up the private assets
-    directory for you. That includes:
+    Multiple commits can be checked out side-by-side. All checkouts of the same
+    ``git_url`` share a single bare clone, so the LFS blob store under
+    ``.git/lfs/objects/`` is shared too: a given LFS blob is downloaded at most
+    once per content hash regardless of how many commits reference it.
 
-     * Clone the `private-assets` git repository (or use the submodule if available)
-     * Install git-lfs (Git Large File Storage)
-     * Fetch and checkout the requested assets
+    Layout under the lago cache directory::
 
-    These are some heavy steps that make take a long while. Therefore, the very first
-    call to this function (in a freshly checked out repository) may be slow. Subsequent
-    calls to this function, however, is essentially a no-op.
+        <cache>/<repo>.git/                  # shared bare clone + LFS store
+        <cache>/<repo>.git.ongoing           # present while the store is being set up
+        <cache>/<repo>--<commit_id>/         # worktree at <commit_id>
+        <cache>/<repo>--<commit_id>.ongoing  # present while a worktree is being checked out
+        <cache>/<repo>.lock                  # per-git_url FileLock
 
-    Raises `RuntimeError` if the `git-lfs` extension is not available.
+    Both ``.ongoing`` flags are created before their respective heavy step and
+    removed only on success. If a process crashes the flag survives, and the
+    next call cleans up the partial artifact and retries.
 
-
-    ## `git status` says that the files are modified
-
-    This is normal. This is just how `git status` and the `git-lfs` extension
-    interacts. When we do `git lfs checkout` it replaces the local pointer
-    file with the actual content found on the remote LFS server. Git sees this
-    as a change (pointer changed to content). That's just how it is.
-
-    Get back the pointers with this command:
-
-        git reset --hard HEAD
-
-    Note that this undoes *all* changes in the current repository. Not just the
-    pointer-to-content changes.
+    Raises ``RuntimeError`` if the ``git-lfs`` extension is not available.
     """
     if git_url is None:
         git_url = PRIVATE_ASSETS_GIT_URL
-    if stop_if_not_empty is None:
-        stop_if_not_empty = True
 
     cache_dir = setup_and_get_lago_cache_dir()
-    private_assets_dir_name = Path(urlparse(git_url).path).stem
-    private_assets_lock_file_name = f"{private_assets_dir_name}.lock"
+    repo_name = Path(urlparse(git_url).path).stem
 
-    # This lock ensures that only a single process modifies the `private-assets`
-    # at a time. This is especially relevant for test suites that use `pytest-xdist`.
-    lock_file = cache_dir / private_assets_lock_file_name
+    store_dir = cache_dir / f"{repo_name}.git"
+    store_ongoing_flag = cache_dir / f"{repo_name}.git.ongoing"
+    worktree_dir = cache_dir / f"{repo_name}--{commit_id}"
+    worktree_ongoing_flag = cache_dir / f"{repo_name}--{commit_id}.ongoing"
+    lock_file = cache_dir / f"{repo_name}.lock"
+
+    # Per-git_url lock so concurrent processes (e.g., pytest-xdist workers)
+    # don't race on the shared store or on the same worktree.
     with FileLock(lock_file):
-        # This is the usual path. Examples:
-        #
-        #     "~/projects/baxter/.lago_cache/private-assets"
-        #     "[...] workspace/sources/python3-lago/.lago_cache/private-assets"
-        #
-        private_assets_dir = cache_dir / private_assets_dir_name
+        if worktree_dir.exists() and not worktree_ongoing_flag.exists():
+            _LOGGER.debug("Reusing worktree at %s", worktree_dir)
+            return worktree_dir
 
-        # Early out if the `private-assets` directory is not empty.
-        # Use this to, e.g., speed up this function call on subsequent invocations.
-        if stop_if_not_empty and (
-            private_assets_dir.exists() and not _is_dir_empty(private_assets_dir)
-        ):
-            _LOGGER.debug(
-                "The '%s' directory is not empty. "
-                "We assume that it contains the latest version and stop early.",
-                private_assets_dir.name,
-            )
-            return private_assets_dir
+        if worktree_dir.exists():
+            _LOGGER.info("Removing partial worktree at %s", worktree_dir)
+            shutil.rmtree(worktree_dir)
+        worktree_ongoing_flag.unlink(missing_ok=True)
 
-        assets_git = Git(directory=private_assets_dir)
-        assets_git.clone(git_url)
+        store_git = Git(directory=store_dir)
+        store_git.raise_if_git_lfs_is_missing()
 
-        assets_git.raise_if_git_lfs_is_missing()
-        assets_git.install_lfs()
-        assets_git.fetch_lfs(include_paths=include_paths)
-        assets_git.checkout_lfs()
-        return private_assets_dir
+        if not store_dir.exists() or store_ongoing_flag.exists():
+            if store_dir.exists():
+                _LOGGER.info("Removing partial bare store at %s", store_dir)
+                shutil.rmtree(store_dir)
+            store_ongoing_flag.touch()
+            store_git.clone_bare(git_url)
+            store_git.install_lfs()
+            store_ongoing_flag.unlink()
 
+        store_git.fetch_commit(commit_id)
+        store_git.fetch_lfs_for_commit(commit_id)
 
-def _is_dir_empty(directory: Path) -> bool:
-    for _ in directory.iterdir():
-        return False
-    return True
+        worktree_ongoing_flag.touch()
+        store_git.prune_worktrees()
+        store_git.add_worktree(path=worktree_dir, commit_id=commit_id)
+        Git(directory=worktree_dir).checkout_lfs()
+        worktree_ongoing_flag.unlink()
+
+        return worktree_dir
