@@ -31,7 +31,7 @@ def setup_and_get_assets_dir(
         <cache>/<repo>.git/                  # shared bare clone + LFS store
         <cache>/<repo>.git.ongoing           # present while the store is being set up
         <cache>/<repo>--<commit_id>/         # worktree at <commit_id>
-        <cache>/<repo>--<commit_id>.ongoing  # present while a worktree is being checked out
+        <cache>/<repo>--<commit_id>.ongoing  # present during worktree checkout
         <cache>/<repo>.lock                  # per-git_url FileLock
 
     Both ``.ongoing`` flags are created before their respective heavy step and
